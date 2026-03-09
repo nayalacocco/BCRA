@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BCRA Macro Intelligence</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <p class="eyebrow">Plataforma institucional</p>
+          <h1>BCRA Macro Intelligence</h1>
+        </div>
+        <nav id="nav"></nav>
+      </aside>
+      <main class="content">
+        <header class="topbar">
+          <div>
+            <p class="muted">Análisis macro-financiero argentino</p>
+            <h2 id="view-title">Dashboard general</h2>
+          </div>
+          <p class="status" id="api-status">Inicializando conexión API BCRA…</p>
+        </header>
+        <section id="view-root"></section>
+      </main>
+    </div>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
