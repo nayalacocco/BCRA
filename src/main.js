@@ -10,6 +10,44 @@ const apiStatus = document.querySelector('#api-status');
 
 const formatN = (n) => (n == null ? '—' : n.toLocaleString('es-AR', { maximumFractionDigits: 2 }));
 const formatPct = (n) => (n == null ? '—' : `${n > 0 ? '+' : ''}${n.toFixed(2)}%`);
+const formatDate = (d) => {
+  if (!d) return '—';
+  const dt = new Date(`${d}T00:00:00`);
+  return Number.isNaN(dt.getTime()) ? d : dt.toLocaleDateString('es-AR');
+};
+
+const toDayTimestamp = (value) => {
+  if (!value) return null;
+  const dt = new Date(`${value}T00:00:00`);
+  if (!Number.isNaN(dt.getTime())) return dt.setHours(0, 0, 0, 0);
+  const [d, m, y] = String(value).split(/[/-]/).map(Number);
+  if (!d || !m || !y) return null;
+  const fallback = new Date(y, m - 1, d);
+  return Number.isNaN(fallback.getTime()) ? null : fallback.setHours(0, 0, 0, 0);
+};
+
+const seriesAtOrBefore = (series, targetDate) => {
+  if (!targetDate || !series?.length) return [];
+  const targetTs = toDayTimestamp(targetDate);
+  if (targetTs == null) return [];
+  return series.filter((point) => {
+    const ts = toDayTimestamp(point.date);
+    return ts != null && ts <= targetTs;
+  });
+};
+
+function dashboardReferenceDate() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dates = prioritizedSeries.slice(0, 6)
+    .map((s) => state.data.get(s.key)?.at(-1)?.date)
+    .filter(Boolean)
+    .map(toDayTimestamp)
+    .filter((ts) => ts != null && ts <= today.getTime())
+    .sort((a, b) => a - b);
+  if (!dates.length) return null;
+  return new Date(dates[0]).toISOString().slice(0, 10);
+}
 
 function setView(id) {
   state.current = id;
@@ -18,9 +56,9 @@ function setView(id) {
   [...nav.children].forEach((btn) => btn.classList.toggle('active', btn.dataset.id === id));
 }
 
-function derivedIndicators() {
+function derivedIndicators(referenceDate = null) {
   const getLast = (key) => {
-    const s = state.data.get(key);
+    const s = seriesAtOrBefore(state.data.get(key) || [], referenceDate);
     return s?.[s.length - 1]?.value;
   };
   const reservas = getLast('reservas');
@@ -32,13 +70,17 @@ function derivedIndicators() {
 }
 
 function renderDashboard() {
+  const referenceDate = dashboardReferenceDate();
   const cards = prioritizedSeries.slice(0, 6).map((s) => {
-    const vars = calcVariations(state.data.get(s.key) || []);
-    return `<article class="card"><h3>${s.name}</h3><p class="kpi">${formatN(vars?.latest)}</p><p class="chg ${vars?.daily >= 0 ? 'pos':'neg'}">Diaria: ${formatPct(vars?.daily)}</p><p class="muted">Mensual: ${formatPct(vars?.monthly)} · Interanual: ${formatPct(vars?.yearly)}</p></article>`;
+    const fullData = state.data.get(s.key) || [];
+    const alignedData = seriesAtOrBefore(fullData, referenceDate);
+    const vars = calcVariations(alignedData);
+    const lastDate = alignedData.at(-1)?.date;
+    return `<article class="card"><h3>${s.name}</h3><p class="kpi">${formatN(vars?.latest)}</p><p class="muted">Unidad: ${s.unit || '—'} · Dato al: ${formatDate(lastDate)}</p><p class="chg ${vars?.daily >= 0 ? 'pos':'neg'}">Diaria: ${formatPct(vars?.daily)}</p><p class="muted">Mensual: ${formatPct(vars?.monthly)} · Interanual: ${formatPct(vars?.yearly)}</p></article>`;
   }).join('');
-  const derived = derivedIndicators().map((d)=>`<article class="card"><h3>${d.name}</h3><p class="kpi">${d.value.toFixed(2)}x</p></article>`).join('');
+  const derived = derivedIndicators(referenceDate).map((d)=>`<article class="card"><h3>${d.name}</h3><p class="kpi">${d.value.toFixed(2)}x</p></article>`).join('');
   const errBanner = state.errors.length ? `<div class="card" style="border-color:#5a3a3a;margin-bottom:1rem"><h3>Estado de ingestión</h3><p class="muted">No se pudieron cargar algunas series. Revisá conectividad del backend a api.bcra.gob.ar.</p><p class="muted">${state.errors.slice(0,2).join(' · ')}</p></div>` : '';
-  root.innerHTML = `${errBanner}
+  root.innerHTML = `${errBanner}<p class="muted" style="margin-bottom:0.75rem">Fecha de corte usada para el dashboard: ${formatDate(referenceDate)}</p>
     <p class="section-title">Visión ejecutiva</p>
     <div class="grid cards">${cards}</div>
     <p class="section-title" style="margin-top:1.2rem">Indicadores derivados</p>
@@ -100,6 +142,28 @@ function renderModules() {
   }).join('') + '</div>';
 }
 
+
+function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Timeout ${ms}ms en ${label}`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+async function checkApiHealth() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 6000);
+  try {
+    const res = await fetch('/api/health', { signal: controller.signal });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function render() {
   if (state.current === 'dashboard') return renderDashboard();
   if (state.current === 'series') return renderSeries();
@@ -110,16 +174,25 @@ function render() {
 async function bootstrap() {
   nav.innerHTML = views.map((v)=>`<button class="nav-btn ${v.id===state.current?'active':''}" data-id="${v.id}">${v.label}</button>`).join('');
   nav.onclick = (e) => e.target.dataset.id && setView(e.target.dataset.id);
-  apiStatus.textContent = 'Cargando series priorizadas…';
+
+  apiStatus.textContent = 'Verificando backend API…';
+  const healthOk = await checkApiHealth();
+  if (!healthOk) {
+    apiStatus.textContent = 'Backend API no disponible (/api/health).';
+  } else {
+    apiStatus.textContent = 'Cargando series priorizadas…';
+  }
+
   await Promise.all(prioritizedSeries.map(async (s) => {
     try {
-      const data = await fetchSeries(s.id);
+      const data = await withTimeout(fetchSeries(s.id), 20000, `/api/series/${s.id}`);
       state.data.set(s.key, data);
     } catch (error) {
       state.data.set(s.key, []);
       state.errors.push(`${s.name}: ${error.message}`);
     }
   }));
+
   const loaded = [...state.data.values()].filter((x) => x.length).length;
   apiStatus.textContent = `Conexión lista · ${loaded}/${prioritizedSeries.length} series disponibles`;
   if (!loaded) {
@@ -127,5 +200,6 @@ async function bootstrap() {
   }
   render();
 }
+
 
 bootstrap();
