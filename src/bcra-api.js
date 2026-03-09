@@ -7,6 +7,11 @@ export async function fetchSeries(id) {
     throw new Error(traces || `HTTP ${res.status}`);
   }
 
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.traces?.join(' | ') || `HTTP ${res.status}`);
+  }
+  const payload = await res.json();
   return payload.data || [];
 }
 

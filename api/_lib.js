@@ -67,6 +67,15 @@ function toObservations(payload) {
     .sort((a, b) => b.length - a.length);
 
   return normalizedCandidates[0] || [];
+function toObservations(payload) {
+  const raw = payload?.results ?? payload?.Results ?? payload?.datos ?? [];
+  return raw
+    .map((d) => ({
+      date: d.fecha || d.Fecha || d.d,
+      value: Number(d.valor ?? d.Valor ?? d.v),
+    }))
+    .filter((d) => d.date && Number.isFinite(d.value))
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 async function fetchSeriesFromBcra(id) {

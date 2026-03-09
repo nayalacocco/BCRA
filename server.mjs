@@ -73,6 +73,15 @@ function toObservations(payload) {
   if (!arrays.length) return [];
   const normalized = arrays.map(normalizeFromRows).filter((arr) => arr.length).sort((a, b) => b.length - a.length);
   return normalized[0] || [];
+function toObservations(payload) {
+  const raw = payload?.results ?? payload?.Results ?? payload?.datos ?? [];
+  return raw
+    .map((d) => ({
+      date: d.fecha || d.Fecha || d.d,
+      value: Number(d.valor ?? d.Valor ?? d.v),
+    }))
+    .filter((d) => d.date && Number.isFinite(d.value))
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 async function fetchSeriesFromBcra(id) {
@@ -90,12 +99,23 @@ async function fetchSeriesFromBcra(id) {
         traces.push(`${url} -> ${response.status}`);
         if (!response.ok) continue;
         const payload = await response.json();
+        const r = await fetch(url, {
+          headers: {
+            'User-Agent': 'BCRA-Macro-Intelligence/1.0',
+            'Accept': 'application/json',
+          },
+        });
+        traces.push(`${url} -> ${r.status}`);
+        if (!r.ok) continue;
+        const payload = await r.json();
         const data = toObservations(payload);
         if (data.length) {
           return { data, source: url, traces };
         }
       } catch (error) {
         traces.push(`${url} -> ${error.message}`);
+      } catch (e) {
+        traces.push(`${url} -> ${e.message}`);
       }
     }
   }
@@ -131,6 +151,8 @@ createServer(async (req, res) => {
     if (!Number.isFinite(id)) return json(res, 400, { error: 'invalid id' });
     const result = await fetchSeriesFromBcra(id);
     return json(res, result.data.length ? 200 : 502, result);
+    const status = result.data.length ? 200 : 502;
+    return json(res, status, result);
   }
 
   return serveFile(url.pathname, res);
