@@ -49,6 +49,28 @@ function collectObservationArrays(node, out = [], depth = 0) {
   return out;
 }
 
+
+function collectPreferredArrays(payload) {
+  if (!payload || typeof payload !== 'object') return [];
+
+  const keys = ['results', 'resultado', 'datos', 'data', 'items', 'valores'];
+  const out = [];
+
+  keys.forEach((key) => {
+    const value = payload[key];
+    if (Array.isArray(value) && value.length && value.every(looksLikeObservation)) {
+      out.push(value);
+      return;
+    }
+    if (value && typeof value === 'object') {
+      const nested = collectObservationArrays(value);
+      out.push(...nested);
+    }
+  });
+
+  return out;
+}
+
 function normalizeFromRows(rows) {
   return rows
     .map((row) => ({
@@ -60,7 +82,8 @@ function normalizeFromRows(rows) {
 }
 
 function toObservations(payload) {
-  const arrays = collectObservationArrays(payload);
+  const preferred = collectPreferredArrays(payload);
+  const arrays = preferred.length ? preferred : collectObservationArrays(payload);
   if (!arrays.length) return [];
 
   const normalizedCandidates = arrays

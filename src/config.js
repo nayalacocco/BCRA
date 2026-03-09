@@ -11,7 +11,7 @@ export const prioritizedSeries = [
   { id: 31, key: 'pasivos_remunerados', name: 'Pasivos remunerados BCRA' },
   { id: 5, key: 'tc_mayorista', name: 'Tipo de cambio mayorista' },
   { id: 40, key: 'tasa_politica', name: 'Tasa de política monetaria' },
-  { id: 20, key: 'depositos_priv', name: 'Depósitos sector privado' },
+  { id: 27, key: 'depositos_priv', name: 'Depósitos sector privado' },
   { id: 28, key: 'prestamos_priv', name: 'Préstamos sector privado' },
   { id: 26, key: 'depositos_usd', name: 'Depósitos en USD sector privado' },
 ];
