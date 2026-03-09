@@ -1,5 +1,12 @@
 export async function fetchSeries(id) {
   const res = await fetch(`/api/series/${id}`);
+  const payload = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const traces = Array.isArray(payload?.traces) ? payload.traces.slice(0, 2).join(' | ') : '';
+    throw new Error(traces || `HTTP ${res.status}`);
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err?.traces?.join(' | ') || `HTTP ${res.status}`);

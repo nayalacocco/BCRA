@@ -19,6 +19,27 @@ node server.mjs
 - Permite manejar fallback de endpoints BCRA (`v4.0` → `v3.0`).
 - Da trazabilidad de errores de conexión para debug.
 
+
+## ¿Tengo que correr algo manual?
+
+Sí, en local tenés que levantar el backend proxy:
+
+```bash
+node server.mjs
+```
+
+Luego abrís `http://localhost:4173`.
+
+Chequeos rápidos:
+
+```bash
+curl http://localhost:4173/api/health
+curl http://localhost:4173/api/series/1
+```
+
+- Si `/api/health` da `ok: true`, el server está levantado.
+- Si `/api/series/1` da `data` vacío o `502`, el problema es conectividad del servidor hacia BCRA o ID de serie no disponible en ese endpoint.
+
 ## Qué incluye esta V1
 
 - **Dashboard general** con KPIs ejecutivos, variaciones diaria/mensual/interanual e indicadores derivados.
