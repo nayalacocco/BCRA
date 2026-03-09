@@ -1,32 +1,11 @@
-const BASES = ['https://api.bcra.gob.ar/estadisticas/v4.0', 'https://api.bcra.gob.ar/estadisticas/v3.0'];
-
-function normalizeObservations(payload) {
-  const raw = payload?.results ?? payload?.Results ?? payload?.datos ?? [];
-  return raw
-    .map((d) => ({
-      date: d.fecha || d.Fecha || d.d,
-      value: Number(d.valor ?? d.Valor ?? d.v),
-    }))
-    .filter((d) => d.date && Number.isFinite(d.value))
-    .sort((a, b) => a.date.localeCompare(b.date));
-}
-
 export async function fetchSeries(id) {
-  const errors = [];
-  for (const base of BASES) {
-    for (const endpoint of [`/Monetarias/${id}`, `/principalesvariables/${id}`]) {
-      try {
-        const res = await fetch(`${base}${endpoint}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        const data = normalizeObservations(json);
-        if (data.length) return data;
-      } catch (err) {
-        errors.push(`${base}${endpoint} -> ${err.message}`);
-      }
-    }
+  const res = await fetch(`/api/series/${id}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.traces?.join(' | ') || `HTTP ${res.status}`);
   }
-  throw new Error(errors.join(' | '));
+  const payload = await res.json();
+  return payload.data || [];
 }
 
 export function calcVariations(series) {
