@@ -107,6 +107,7 @@ function normalizeFromRows(rows, requestedId) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+function normalizeFromRows(rows) {
   return rows
     .map((row) => ({
       date: pickDate(row),
@@ -122,6 +123,7 @@ function normalizeFromRows(rows, requestedId) {
 }
 
 function toObservations(payload, requestedId) {
+function toObservations(payload) {
   const preferred = collectPreferredArrays(payload);
   const arrays = preferred.length ? preferred : collectObservationArrays(payload);
   if (!arrays.length) return [];

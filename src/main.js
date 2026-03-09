@@ -77,10 +77,20 @@ function renderDashboard() {
     const vars = calcVariations(alignedData);
     const lastDate = alignedData.at(-1)?.date;
     return `<article class="card"><h3>${s.name}</h3><p class="kpi">${formatN(vars?.latest)}</p><p class="muted">Unidad: ${s.unit || '—'} · Dato al: ${formatDate(lastDate)}</p><p class="chg ${vars?.daily >= 0 ? 'pos':'neg'}">Diaria: ${formatPct(vars?.daily)}</p><p class="muted">Mensual: ${formatPct(vars?.monthly)} · Interanual: ${formatPct(vars?.yearly)}</p></article>`;
+    const data = state.data.get(s.key) || [];
+    const vars = calcVariations(data);
+    const lastDate = data.at(-1)?.date;
+    return `<article class="card"><h3>${s.name}</h3><p class="kpi">${formatN(vars?.latest)}</p><p class="muted">Dato al: ${formatDate(lastDate)}</p><p class="chg ${vars?.daily >= 0 ? 'pos':'neg'}">Diaria: ${formatPct(vars?.daily)}</p><p class="muted">Mensual: ${formatPct(vars?.monthly)} · Interanual: ${formatPct(vars?.yearly)}</p></article>`;
   }).join('');
   const derived = derivedIndicators(referenceDate).map((d)=>`<article class="card"><h3>${d.name}</h3><p class="kpi">${d.value.toFixed(2)}x</p></article>`).join('');
   const errBanner = state.errors.length ? `<div class="card" style="border-color:#5a3a3a;margin-bottom:1rem"><h3>Estado de ingestión</h3><p class="muted">No se pudieron cargar algunas series. Revisá conectividad del backend a api.bcra.gob.ar.</p><p class="muted">${state.errors.slice(0,2).join(' · ')}</p></div>` : '';
   root.innerHTML = `${errBanner}<p class="muted" style="margin-bottom:0.75rem">Fecha de corte usada para el dashboard: ${formatDate(referenceDate)}</p>
+  const latestSnapshot = [...state.data.values()]
+    .map((series) => series.at(-1)?.date)
+    .filter(Boolean)
+    .sort()
+    .at(-1);
+  root.innerHTML = `${errBanner}<p class="muted" style="margin-bottom:0.75rem">Última fecha disponible en el dashboard: ${formatDate(latestSnapshot)}</p>
     <p class="section-title">Visión ejecutiva</p>
     <div class="grid cards">${cards}</div>
     <p class="section-title" style="margin-top:1.2rem">Indicadores derivados</p>

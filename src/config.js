@@ -14,6 +14,14 @@ export const prioritizedSeries = [
   { id: 27, key: 'depositos_priv', name: 'Depósitos sector privado', unit: 'ARS millones' },
   { id: 28, key: 'prestamos_priv', name: 'Préstamos sector privado', unit: 'ARS millones' },
   { id: 26, key: 'depositos_usd', name: 'Depósitos en USD sector privado', unit: 'USD millones' },
+  { id: 1, key: 'reservas', name: 'Reservas Internacionales' },
+  { id: 4, key: 'base_monetaria', name: 'Base Monetaria' },
+  { id: 31, key: 'pasivos_remunerados', name: 'Pasivos remunerados BCRA' },
+  { id: 5, key: 'tc_mayorista', name: 'Tipo de cambio mayorista' },
+  { id: 40, key: 'tasa_politica', name: 'Tasa de política monetaria' },
+  { id: 27, key: 'depositos_priv', name: 'Depósitos sector privado' },
+  { id: 28, key: 'prestamos_priv', name: 'Préstamos sector privado' },
+  { id: 26, key: 'depositos_usd', name: 'Depósitos en USD sector privado' },
 ];
 
 export const moduleGroups = {
