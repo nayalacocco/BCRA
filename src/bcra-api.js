@@ -1,18 +1,29 @@
+const API_TIMEOUT_MS = 15000;
+
 export async function fetchSeries(id) {
-  const res = await fetch(`/api/series/${id}`);
-  const payload = await res.json().catch(() => ({}));
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
-  if (!res.ok) {
-    const traces = Array.isArray(payload?.traces) ? payload.traces.slice(0, 2).join(' | ') : '';
-    throw new Error(traces || `HTTP ${res.status}`);
-  }
+  try {
+    const res = await fetch(`/api/series/${id}`, { signal: controller.signal });
+    const payload = await res.json().catch(() => ({}));
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err?.traces?.join(' | ') || `HTTP ${res.status}`);
+    if (!res.ok) {
+      const traces = Array.isArray(payload?.traces)
+        ? payload.traces.slice(0, 2).join(' | ')
+        : '';
+      throw new Error(traces || `HTTP ${res.status}`);
+    }
+
+    return payload.data || [];
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error(`Timeout ${API_TIMEOUT_MS}ms en /api/series/${id}`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-  const payload = await res.json();
-  return payload.data || [];
 }
 
 export function calcVariations(series) {

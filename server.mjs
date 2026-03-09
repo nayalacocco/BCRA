@@ -9,6 +9,7 @@ const API_BASES = [
   'https://api.bcra.gob.ar/estadisticas/v4.0',
   'https://api.bcra.gob.ar/estadisticas/v3.0',
 ];
+const API_TIMEOUT_MS = 10000;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -73,15 +74,23 @@ function toObservations(payload) {
   if (!arrays.length) return [];
   const normalized = arrays.map(normalizeFromRows).filter((arr) => arr.length).sort((a, b) => b.length - a.length);
   return normalized[0] || [];
-function toObservations(payload) {
-  const raw = payload?.results ?? payload?.Results ?? payload?.datos ?? [];
-  return raw
-    .map((d) => ({
-      date: d.fecha || d.Fecha || d.d,
-      value: Number(d.valor ?? d.Valor ?? d.v),
-    }))
-    .filter((d) => d.date && Number.isFinite(d.value))
-    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+async function fetchJsonWithTimeout(url, timeoutMs) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'BCRA-Macro-Intelligence/1.0',
+        Accept: 'application/json',
+      },
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function fetchSeriesFromBcra(id) {
@@ -90,32 +99,18 @@ async function fetchSeriesFromBcra(id) {
     for (const endpoint of [`/Monetarias/${id}`, `/principalesvariables/${id}`]) {
       const url = `${base}${endpoint}`;
       try {
-        const response = await fetch(url, {
-          headers: {
-            'User-Agent': 'BCRA-Macro-Intelligence/1.0',
-            Accept: 'application/json',
-          },
-        });
+        const response = await fetchJsonWithTimeout(url, API_TIMEOUT_MS);
         traces.push(`${url} -> ${response.status}`);
         if (!response.ok) continue;
+
         const payload = await response.json();
-        const r = await fetch(url, {
-          headers: {
-            'User-Agent': 'BCRA-Macro-Intelligence/1.0',
-            'Accept': 'application/json',
-          },
-        });
-        traces.push(`${url} -> ${r.status}`);
-        if (!r.ok) continue;
-        const payload = await r.json();
         const data = toObservations(payload);
         if (data.length) {
           return { data, source: url, traces };
         }
       } catch (error) {
-        traces.push(`${url} -> ${error.message}`);
-      } catch (e) {
-        traces.push(`${url} -> ${e.message}`);
+        const reason = error.name === 'AbortError' ? `timeout ${API_TIMEOUT_MS}ms` : error.message;
+        traces.push(`${url} -> ${reason}`);
       }
     }
   }
@@ -149,8 +144,8 @@ createServer(async (req, res) => {
   if (url.pathname.startsWith('/api/series/')) {
     const id = Number(url.pathname.split('/').pop());
     if (!Number.isFinite(id)) return json(res, 400, { error: 'invalid id' });
+
     const result = await fetchSeriesFromBcra(id);
-    return json(res, result.data.length ? 200 : 502, result);
     const status = result.data.length ? 200 : 502;
     return json(res, status, result);
   }
