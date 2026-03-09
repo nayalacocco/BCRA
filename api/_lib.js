@@ -3,6 +3,8 @@ const API_BASES = [
   'https://api.bcra.gob.ar/estadisticas/v3.0',
 ];
 
+const API_TIMEOUT_MS = 10000;
+
 function pickDate(row) {
   return row.fecha || row.Fecha || row.date || row.Date || row.d || row.f || row.periodo || null;
 }
@@ -67,15 +69,25 @@ function toObservations(payload) {
     .sort((a, b) => b.length - a.length);
 
   return normalizedCandidates[0] || [];
-function toObservations(payload) {
-  const raw = payload?.results ?? payload?.Results ?? payload?.datos ?? [];
-  return raw
-    .map((d) => ({
-      date: d.fecha || d.Fecha || d.d,
-      value: Number(d.valor ?? d.Valor ?? d.v),
-    }))
-    .filter((d) => d.date && Number.isFinite(d.value))
-    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+async function fetchJsonWithTimeout(url, timeoutMs) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'BCRA-Macro-Intelligence/1.0',
+        Accept: 'application/json',
+      },
+    });
+
+    return response;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function fetchSeriesFromBcra(id) {
@@ -84,12 +96,7 @@ async function fetchSeriesFromBcra(id) {
     for (const endpoint of [`/Monetarias/${id}`, `/principalesvariables/${id}`]) {
       const url = `${base}${endpoint}`;
       try {
-        const response = await fetch(url, {
-          headers: {
-            'User-Agent': 'BCRA-Macro-Intelligence/1.0',
-            Accept: 'application/json',
-          },
-        });
+        const response = await fetchJsonWithTimeout(url, API_TIMEOUT_MS);
         traces.push(`${url} -> ${response.status}`);
         if (!response.ok) continue;
 
@@ -99,7 +106,8 @@ async function fetchSeriesFromBcra(id) {
           return { data, source: url, traces };
         }
       } catch (error) {
-        traces.push(`${url} -> ${error.message}`);
+        const reason = error.name === 'AbortError' ? `timeout ${API_TIMEOUT_MS}ms` : error.message;
+        traces.push(`${url} -> ${reason}`);
       }
     }
   }
