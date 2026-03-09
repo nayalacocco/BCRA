@@ -152,6 +152,28 @@ function renderModules() {
   }).join('') + '</div>';
 }
 
+
+function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Timeout ${ms}ms en ${label}`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+async function checkApiHealth() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 6000);
+  try {
+    const res = await fetch('/api/health', { signal: controller.signal });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function render() {
   if (state.current === 'dashboard') return renderDashboard();
   if (state.current === 'series') return renderSeries();
@@ -162,16 +184,25 @@ function render() {
 async function bootstrap() {
   nav.innerHTML = views.map((v)=>`<button class="nav-btn ${v.id===state.current?'active':''}" data-id="${v.id}">${v.label}</button>`).join('');
   nav.onclick = (e) => e.target.dataset.id && setView(e.target.dataset.id);
-  apiStatus.textContent = 'Cargando series priorizadas…';
+
+  apiStatus.textContent = 'Verificando backend API…';
+  const healthOk = await checkApiHealth();
+  if (!healthOk) {
+    apiStatus.textContent = 'Backend API no disponible (/api/health).';
+  } else {
+    apiStatus.textContent = 'Cargando series priorizadas…';
+  }
+
   await Promise.all(prioritizedSeries.map(async (s) => {
     try {
-      const data = await fetchSeries(s.id);
+      const data = await withTimeout(fetchSeries(s.id), 20000, `/api/series/${s.id}`);
       state.data.set(s.key, data);
     } catch (error) {
       state.data.set(s.key, []);
       state.errors.push(`${s.name}: ${error.message}`);
     }
   }));
+
   const loaded = [...state.data.values()].filter((x) => x.length).length;
   apiStatus.textContent = `Conexión lista · ${loaded}/${prioritizedSeries.length} series disponibles`;
   if (!loaded) {
@@ -179,5 +210,6 @@ async function bootstrap() {
   }
   render();
 }
+
 
 bootstrap();
