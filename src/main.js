@@ -2,7 +2,7 @@ import { views, prioritizedSeries, moduleGroups } from './config.js';
 import { fetchSeries, calcVariations } from './bcra-api.js';
 import { drawLineChart } from './chart.js';
 
-const state = { current: 'dashboard', data: new Map(), filtered: [] };
+const state = { current: 'dashboard', data: new Map(), errors: [] };
 const nav = document.querySelector('#nav');
 const root = document.querySelector('#view-root');
 const title = document.querySelector('#view-title');
@@ -37,7 +37,8 @@ function renderDashboard() {
     return `<article class="card"><h3>${s.name}</h3><p class="kpi">${formatN(vars?.latest)}</p><p class="chg ${vars?.daily >= 0 ? 'pos':'neg'}">Diaria: ${formatPct(vars?.daily)}</p><p class="muted">Mensual: ${formatPct(vars?.monthly)} · Interanual: ${formatPct(vars?.yearly)}</p></article>`;
   }).join('');
   const derived = derivedIndicators().map((d)=>`<article class="card"><h3>${d.name}</h3><p class="kpi">${d.value.toFixed(2)}x</p></article>`).join('');
-  root.innerHTML = `
+  const errBanner = state.errors.length ? `<div class="card" style="border-color:#5a3a3a;margin-bottom:1rem"><h3>Estado de ingestión</h3><p class="muted">No se pudieron cargar algunas series. Revisá conectividad del backend a api.bcra.gob.ar.</p><p class="muted">${state.errors.slice(0,2).join(' · ')}</p></div>` : '';
+  root.innerHTML = `${errBanner}
     <p class="section-title">Visión ejecutiva</p>
     <div class="grid cards">${cards}</div>
     <p class="section-title" style="margin-top:1.2rem">Indicadores derivados</p>
@@ -114,12 +115,16 @@ async function bootstrap() {
     try {
       const data = await fetchSeries(s.id);
       state.data.set(s.key, data);
-    } catch {
+    } catch (error) {
       state.data.set(s.key, []);
+      state.errors.push(`${s.name}: ${error.message}`);
     }
   }));
   const loaded = [...state.data.values()].filter((x) => x.length).length;
   apiStatus.textContent = `Conexión lista · ${loaded}/${prioritizedSeries.length} series disponibles`;
+  if (!loaded) {
+    apiStatus.textContent = 'Sin datos: verificá /api/health y /api/series/1 en tu entorno';
+  }
   render();
 }
 
